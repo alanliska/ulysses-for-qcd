@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
   std::cout << " " << "\n";
   std::cout << "Authors: Filipe Menezes and Grzegorz M. Popowicz" << "\n";
   std::cout << "" << "\n";
-  std::cout << "Version for Android (x86_64, pie) powered by EIGEN, RAPIDJSON and XSUM libraries compiled by A. Liska & V. Ruzickova on May 23, 2024." << "\n";
+  std::cout << "Version for Android (arm, pie) powered by EIGEN, RAPIDJSON and XSUM libraries compiled by A. Liska & V. Ruzickova on February 11, 2025." << "\n";
   std::cout << "" << "\n";
   std::cout << "" << "\n";
   std::cout << "References:" << "\n";
@@ -102,27 +102,144 @@ int main(int argc, char** argv) {
   std::string basis_set;
   is4 >> basis_set;
   is4.close();
+  // define the molecule symmetry;
+  // DINFh, CINFv, C2h, C3h, C4h, C5h, C6h, C2v, C3v, C4v, C5v, C6v, C7v, C8v, C1, C2, C3, C4, C5, C6, C7, C8, Cs, Ci, D2h, D3h, D4h, D5h, D6h, D7h, D8h, D2d, D3d, D4d, D5d, D6d, D7d, D8d, D2, D3, D4, D5, D6, D7, D8, T, Th, Td, O, Oh, I, Ih, S2, S4, S6, S8, S10, S12
+  std::ifstream is7 ("point_group.tmp");
+  std::string point_group;
+  is7 >> point_group;
+  is7.close();
   
-  double toptg = 0.01;
-  bool doequ = false;
-  bool optgeometry = true;
+  // frequency (in ps) at which geometries are dumped
+  std::ifstream is36 ("t_opt.tmp");
+  double topt;
+  is36 >> topt;
+  is36.close();
+  
+  std::ifstream is34 ("md_do_equilibration.tmp");
+  int do_equ;
+  is34 >> do_equ;
+  is34.close();
+  
+  bool doequ;
+  if (do_equ  == 1){
+  	doequ = true;
+  } else {
+  	doequ = false;
+  }
+  
+  std::ifstream is35 ("md_opt_geometry.tmp");
+  int opt_geometry;
+  is35 >> opt_geometry;
+  is35.close();
+  
+  bool optgeometry;
+  if (opt_geometry  == 1){
+  	optgeometry = true;
+  } else {
+  	optgeometry = false;
+  }
   
   //Molecule mol(argv[1],charge,1);
-  Molecule mol(argv[1],charge,mult);
+  Molecule mol(argv[1],charge,mult,point_group);
   //BSet basis(mol,"gfn2");
   BSet basis(mol,basis_set);
   GFN2 electron(basis,mol);
   
-  Dynamics MDobj(mol,tmax,doequ,optgeometry,tstep,toptg);
-  MDobj.ApplyConstraints(false,0);
+  std::ifstream is5 ("solvent.tmp");
+  std::string solvent;
+  is5 >> solvent;
+  is5.close();
+  // if (strcmp(solvent, "without_solvent") != 0) {
+  if (solvent != "without_solvent") {
+  electron.setSolvent(solvent);
+  }
+  
+  std::ifstream is40 ("md_shake.tmp");
+  int SHAKE;
+  is40 >> SHAKE;
+  is40.close();
+  
+  std::ifstream is48 ("md_print_freq.tmp");
+  int printfreq;
+  is48 >> printfreq;
+  is48.close();
+  
+  Dynamics MDobj(mol,tmax,doequ,optgeometry,tstep,printfreq);
+  MDobj.ApplyConstraints(false,SHAKE);
   MDobj.setIntegration("LeapFrog");
   
-  //where to save files
-  MDobj.setTrajectoryFile("MD/trajectory");
-  MDobj.setEquilibrationFile("MD/equilibration");
-  MDobj.setGeometryFile("MD/geometry");
+  std::ifstream is37 ("md_trajectory_location.tmp");
+  std::string traj_loc;
+  is37 >> traj_loc;
+  is37.close();
   
-  MDobj.runMD(electron,Temperature);
+  std::ifstream is38 ("md_equilibration_location.tmp");
+  std::string equi_loc;
+  is38 >> equi_loc;
+  is38.close();
+  
+  std::ifstream is39 ("md_geometry_location.tmp");
+  std::string geom_loc;
+  is39 >> geom_loc;
+  is39.close();
+  //where to save files
+  MDobj.setTrajectoryFile(traj_loc);
+  MDobj.setEquilibrationFile(equi_loc);
+  MDobj.setGeometryFile(geom_loc);
+  
+  //metadynamics?
+  std::ifstream is41 ("md_mtd.tmp");
+  int dometadyn;
+  is41 >> dometadyn;
+  is41.close();
+  std::ifstream is42 ("md_numb_struct.tmp");
+  int numbstruct;
+  is42 >> numbstruct;
+  is42.close();
+  std::ifstream is43 ("md_kappa.tmp");
+  double kappa;
+  is43 >> kappa;
+  is43.close();
+  std::ifstream is44 ("md_alpha.tmp");
+  double alpha;
+  is44 >> alpha;
+  is44.close();
+  std::ifstream is45 ("md_mtdcollect.tmp");
+  int mtdcollect;
+  is45 >> mtdcollect;
+  is45.close();
+  std::ifstream is46 ("md_bias_mol.tmp");
+  std::string bias_mol;
+  is46 >> bias_mol;
+  is46.close();
+  
+  std::ifstream is47 ("md_drift_thresh.tmp");
+  double driftthresh;
+  is47 >> driftthresh;
+  is47.close();
+  
+  if (dometadyn > 0) {
+    MDobj.setMetaDynamics(true,numbstruct,kappa,alpha,mtdcollect,0.03);
+    std::vector<int> mtdrestr = getNumbersFromFile("md_restraints.tmp");
+    for (size_t idatm = 0; idatm < mtdrestr.size(); ++idatm) {
+      MDobj.addMetaAtom(mtdrestr[idatm]);
+    }
+    Molecule newmol(bias_mol,charge,mult,point_group);
+    if ((newmol.Natoms() > 0)&&(kappa < 0.0)) {
+      std::vector<matrixE> metaset;
+      metaset.resize(numbstruct);
+      matrixE geom = newmol.Geometry();
+      for (size_t idmt = 0; idmt < numbstruct; ++idmt) {
+        metaset[idmt] = geom;
+      }
+      MDobj.setMetaSet(metaset);
+    }
+  }
+  
+  
+  
+  MDobj.runMD(electron,Temperature,driftthresh,printfreq);
+  
   
   
   
@@ -475,7 +592,17 @@ int main(int argc, char** argv) {
   double T;
   is13 >> T;
   is13.close();
-  bool grimmecorrection = true;
+  std::ifstream is33 ("grimme_corr.tmp");
+  int grimme_corr;
+  is33 >> grimme_corr;
+  is33.close();
+  
+  bool grimmecorrection;
+  if (grimme_corr  == 1){
+  	grimmecorrection = true;
+  } else {
+  	grimmecorrection = false;
+  }
   double numbermolecules = NA; //1 mol
   double volume = 0.0224;
   PBlRRlHOE IdealGas(T,argv[1],inertia,vibrations,Eel,gel,charge,1,point_group,radical,grimmecorrection,numbermolecules,volume);
@@ -496,6 +623,19 @@ int main(int argc, char** argv) {
     //.CP() -> heat capacity (constant P; J/(K.mol))
     temperature += 10.0;
   }
+  }
+  std::ifstream is24 ("calc_density.tmp");
+  int calc_density;
+  is24 >> calc_density;
+  is24.close();
+  
+  std::ifstream is25 ("density_file.tmp");
+  std::string density_file;
+  is25 >> density_file;
+  is25.close();
+  //get the density?
+  if (calc_density > 0) {
+    electron.ElectronicDensity(density_file);
   }
   } else if (basis_set == "am1") {
   //program to run PM6-D3H4X calculations
@@ -838,7 +978,17 @@ int main(int argc, char** argv) {
   double T;
   is13 >> T;
   is13.close();
-  bool grimmecorrection = true;
+  std::ifstream is33 ("grimme_corr.tmp");
+  int grimme_corr;
+  is33 >> grimme_corr;
+  is33.close();
+  
+  bool grimmecorrection;
+  if (grimme_corr  == 1){
+  	grimmecorrection = true;
+  } else {
+  	grimmecorrection = false;
+  }
   double numbermolecules = NA; //1 mol
   double volume = 0.0224;
   PBlRRlHOE IdealGas(T,argv[1],inertia,vibrations,Eel,gel,charge,1,point_group,radical,grimmecorrection,numbermolecules,volume);
@@ -859,6 +1009,19 @@ int main(int argc, char** argv) {
     //.CP() -> heat capacity (constant P; J/(K.mol))
     temperature += 10.0;
   }
+  }
+  std::ifstream is24 ("calc_density.tmp");
+  int calc_density;
+  is24 >> calc_density;
+  is24.close();
+  
+  std::ifstream is25 ("density_file.tmp");
+  std::string density_file;
+  is25 >> density_file;
+  is25.close();
+  //get the density?
+  if (calc_density > 0) {
+    electron.ElectronicDensity(density_file);
   }
   } else if (basis_set == "pm3") {
   //program to run PM6-D3H4X calculations
@@ -1201,7 +1364,17 @@ int main(int argc, char** argv) {
   double T;
   is13 >> T;
   is13.close();
-  bool grimmecorrection = true;
+  std::ifstream is33 ("grimme_corr.tmp");
+  int grimme_corr;
+  is33 >> grimme_corr;
+  is33.close();
+  
+  bool grimmecorrection;
+  if (grimme_corr  == 1){
+  	grimmecorrection = true;
+  } else {
+  	grimmecorrection = false;
+  }
   double numbermolecules = NA; //1 mol
   double volume = 0.0224;
   PBlRRlHOE IdealGas(T,argv[1],inertia,vibrations,Eel,gel,charge,1,point_group,radical,grimmecorrection,numbermolecules,volume);
@@ -1222,6 +1395,19 @@ int main(int argc, char** argv) {
     //.CP() -> heat capacity (constant P; J/(K.mol))
     temperature += 10.0;
   }
+  }
+  std::ifstream is24 ("calc_density.tmp");
+  int calc_density;
+  is24 >> calc_density;
+  is24.close();
+  
+  std::ifstream is25 ("density_file.tmp");
+  std::string density_file;
+  is25 >> density_file;
+  is25.close();
+  //get the density?
+  if (calc_density > 0) {
+    electron.ElectronicDensity(density_file);
   }
   } else if (basis_set == "pm3pddg") {
   //program to run PM6-D3H4X calculations
@@ -1564,7 +1750,17 @@ int main(int argc, char** argv) {
   double T;
   is13 >> T;
   is13.close();
-  bool grimmecorrection = true;
+  std::ifstream is33 ("grimme_corr.tmp");
+  int grimme_corr;
+  is33 >> grimme_corr;
+  is33.close();
+  
+  bool grimmecorrection;
+  if (grimme_corr  == 1){
+  	grimmecorrection = true;
+  } else {
+  	grimmecorrection = false;
+  }
   double numbermolecules = NA; //1 mol
   double volume = 0.0224;
   PBlRRlHOE IdealGas(T,argv[1],inertia,vibrations,Eel,gel,charge,1,point_group,radical,grimmecorrection,numbermolecules,volume);
@@ -1585,6 +1781,19 @@ int main(int argc, char** argv) {
     //.CP() -> heat capacity (constant P; J/(K.mol))
     temperature += 10.0;
   }
+  }
+  std::ifstream is24 ("calc_density.tmp");
+  int calc_density;
+  is24 >> calc_density;
+  is24.close();
+  
+  std::ifstream is25 ("density_file.tmp");
+  std::string density_file;
+  is25 >> density_file;
+  is25.close();
+  //get the density?
+  if (calc_density > 0) {
+    electron.ElectronicDensity(density_file);
   }
   } else if (basis_set == "pm3bp") {
   //program to run PM6-D3H4X calculations
@@ -1927,7 +2136,17 @@ int main(int argc, char** argv) {
   double T;
   is13 >> T;
   is13.close();
-  bool grimmecorrection = true;
+  std::ifstream is33 ("grimme_corr.tmp");
+  int grimme_corr;
+  is33 >> grimme_corr;
+  is33.close();
+  
+  bool grimmecorrection;
+  if (grimme_corr  == 1){
+  	grimmecorrection = true;
+  } else {
+  	grimmecorrection = false;
+  }
   double numbermolecules = NA; //1 mol
   double volume = 0.0224;
   PBlRRlHOE IdealGas(T,argv[1],inertia,vibrations,Eel,gel,charge,1,point_group,radical,grimmecorrection,numbermolecules,volume);
@@ -1948,6 +2167,19 @@ int main(int argc, char** argv) {
     //.CP() -> heat capacity (constant P; J/(K.mol))
     temperature += 10.0;
   }
+  }
+  std::ifstream is24 ("calc_density.tmp");
+  int calc_density;
+  is24 >> calc_density;
+  is24.close();
+  
+  std::ifstream is25 ("density_file.tmp");
+  std::string density_file;
+  is25 >> density_file;
+  is25.close();
+  //get the density?
+  if (calc_density > 0) {
+    electron.ElectronicDensity(density_file);
   }
   } else if (basis_set == "rm1") {
   //program to run PM6-D3H4X calculations
@@ -2289,7 +2521,17 @@ int main(int argc, char** argv) {
   double T;
   is13 >> T;
   is13.close();
-  bool grimmecorrection = true;
+  std::ifstream is33 ("grimme_corr.tmp");
+  int grimme_corr;
+  is33 >> grimme_corr;
+  is33.close();
+  
+  bool grimmecorrection;
+  if (grimme_corr  == 1){
+  	grimmecorrection = true;
+  } else {
+  	grimmecorrection = false;
+  }
   double numbermolecules = NA; //1 mol
   double volume = 0.0224;
   PBlRRlHOE IdealGas(T,argv[1],inertia,vibrations,Eel,gel,charge,1,point_group,radical,grimmecorrection,numbermolecules,volume);
@@ -2310,6 +2552,19 @@ int main(int argc, char** argv) {
     //.CP() -> heat capacity (constant P; J/(K.mol))
     temperature += 10.0;
   }
+  }
+  std::ifstream is24 ("calc_density.tmp");
+  int calc_density;
+  is24 >> calc_density;
+  is24.close();
+  
+  std::ifstream is25 ("density_file.tmp");
+  std::string density_file;
+  is25 >> density_file;
+  is25.close();
+  //get the density?
+  if (calc_density > 0) {
+    electron.ElectronicDensity(density_file);
   }
   } else if (basis_set == "mndod") {
   //program to run PM6-D3H4X calculations
@@ -2651,7 +2906,17 @@ int main(int argc, char** argv) {
   double T;
   is13 >> T;
   is13.close();
-  bool grimmecorrection = true;
+  std::ifstream is33 ("grimme_corr.tmp");
+  int grimme_corr;
+  is33 >> grimme_corr;
+  is33.close();
+  
+  bool grimmecorrection;
+  if (grimme_corr  == 1){
+  	grimmecorrection = true;
+  } else {
+  	grimmecorrection = false;
+  }
   double numbermolecules = NA; //1 mol
   double volume = 0.0224;
   PBlRRlHOE IdealGas(T,argv[1],inertia,vibrations,Eel,gel,charge,1,point_group,radical,grimmecorrection,numbermolecules,volume);
@@ -2672,6 +2937,19 @@ int main(int argc, char** argv) {
     //.CP() -> heat capacity (constant P; J/(K.mol))
     temperature += 10.0;
   }
+  }
+  std::ifstream is24 ("calc_density.tmp");
+  int calc_density;
+  is24 >> calc_density;
+  is24.close();
+  
+  std::ifstream is25 ("density_file.tmp");
+  std::string density_file;
+  is25 >> density_file;
+  is25.close();
+  //get the density?
+  if (calc_density > 0) {
+    electron.ElectronicDensity(density_file);
   }
   } else if (basis_set == "mndopddg") {
   //program to run PM6-D3H4X calculations
@@ -3013,7 +3291,17 @@ int main(int argc, char** argv) {
   double T;
   is13 >> T;
   is13.close();
-  bool grimmecorrection = true;
+  std::ifstream is33 ("grimme_corr.tmp");
+  int grimme_corr;
+  is33 >> grimme_corr;
+  is33.close();
+  
+  bool grimmecorrection;
+  if (grimme_corr  == 1){
+  	grimmecorrection = true;
+  } else {
+  	grimmecorrection = false;
+  }
   double numbermolecules = NA; //1 mol
   double volume = 0.0224;
   PBlRRlHOE IdealGas(T,argv[1],inertia,vibrations,Eel,gel,charge,1,point_group,radical,grimmecorrection,numbermolecules,volume);
@@ -3034,6 +3322,19 @@ int main(int argc, char** argv) {
     //.CP() -> heat capacity (constant P; J/(K.mol))
     temperature += 10.0;
   }
+  }
+  std::ifstream is24 ("calc_density.tmp");
+  int calc_density;
+  is24 >> calc_density;
+  is24.close();
+  
+  std::ifstream is25 ("density_file.tmp");
+  std::string density_file;
+  is25 >> density_file;
+  is25.close();
+  //get the density?
+  if (calc_density > 0) {
+    electron.ElectronicDensity(density_file);
   }
   } else if (basis_set == "pm6") {
   //program to run PM6-D3H4X calculations
@@ -3376,7 +3677,17 @@ int main(int argc, char** argv) {
   double T;
   is13 >> T;
   is13.close();
-  bool grimmecorrection = true;
+  std::ifstream is33 ("grimme_corr.tmp");
+  int grimme_corr;
+  is33 >> grimme_corr;
+  is33.close();
+  
+  bool grimmecorrection;
+  if (grimme_corr  == 1){
+  	grimmecorrection = true;
+  } else {
+  	grimmecorrection = false;
+  }
   double numbermolecules = NA; //1 mol
   double volume = 0.0224;
   PBlRRlHOE IdealGas(T,argv[1],inertia,vibrations,Eel,gel,charge,1,point_group,radical,grimmecorrection,numbermolecules,volume);
@@ -3730,6 +4041,69 @@ int main(int argc, char** argv) {
   electron.TotalPolarizability(polbity,AtmCharge);
   std::cout << " Total Polarizability          " << polbity << "\n";
   
+  std::ifstream is26 ("elec_rx.tmp");
+  int elec_rx;
+  is26 >> elec_rx;
+  is26.close();
+  
+  std::ifstream is27 ("orb_rx.tmp");
+  int orb_rx;
+  is27 >> orb_rx;
+  is27.close();
+  
+  std::ifstream is28 ("koopman_ip.tmp");
+  int koopman_ip;
+  is28 >> koopman_ip;
+  is28.close();
+  
+  std::ifstream is29 ("ip.tmp");
+  int ip;
+  is29 >> ip;
+  is29.close();
+  
+  std::ifstream is30 ("ea.tmp");
+  int ea;
+  is30 >> ea;
+  is30.close();
+  
+  std::ifstream is31 ("electronegativity.tmp");
+  int electronegativity;
+  is31 >> electronegativity;
+  is31.close();
+  
+  std::ifstream is32 ("hardness.tmp");
+  int hardness;
+  is32 >> hardness;
+  is32.close();
+  
+  //additional properties
+  matrixE RxData(1,1);
+  if (elec_rx > 0) {
+    electron.ReactivityIndices(RxData,false);
+    std::cout << ">Electronic Reactivity indices" << std::endl;
+    RxData.Print(4);
+    std::cout << "<Electronic Reactivity indices" << std::endl;
+  }
+
+  if (orb_rx > 0) {
+    electron.ReactivityIndices(RxData,true);
+    std::cout << ">Orbital Reactivity indices" << std::endl;
+    RxData.Print(4);
+    std::cout << "<Orbital Reactivity indices" << std::endl;
+  }
+
+  if (koopman_ip > 0) {std::cout << "Ionization Potential (Koopman): " << electron.IonizationPotential(true)*au2eV << "   eV" << std::endl;}
+  if (ip > 0) {std::cout << "Ionization Potential (Definition): " << electron.IonizationPotential(false)*au2eV << "   eV" << std::endl;}
+  if (ea > 0) {std::cout << "Electron Affinity (Definition): " << electron.ElectronAffinity()*au2eV << "   eV" << std::endl;}
+  
+  if ((electronegativity > 0)||(hardness > 0)) {
+    double chi;
+    double eta;
+    electron.HSABdata(chi,eta);
+    std::cout << "Electronegativity: " << chi*au2eV << "   eV" << std::endl;
+    std::cout << "Hardness: " << eta*au2eV << "   eV" << std::endl;
+  }
+  
   std::ifstream is22 ("thermo.tmp");
   int thermo_prop;
   is22 >> thermo_prop;
@@ -3764,7 +4138,17 @@ int main(int argc, char** argv) {
   double T;
   is13 >> T;
   is13.close();
-  bool grimmecorrection = true;
+  std::ifstream is33 ("grimme_corr.tmp");
+  int grimme_corr;
+  is33 >> grimme_corr;
+  is33.close();
+  
+  bool grimmecorrection;
+  if (grimme_corr  == 1){
+  	grimmecorrection = true;
+  } else {
+  	grimmecorrection = false;
+  }
   double numbermolecules = NA; //1 mol
   double volume = 0.0224;
   PBlRRlHOE IdealGas(T,argv[1],inertia,vibrations,Eel,gel,charge,1,point_group,radical,grimmecorrection,numbermolecules,volume);
@@ -3785,6 +4169,19 @@ int main(int argc, char** argv) {
     //.CP() -> heat capacity (constant P; J/(K.mol))
     temperature += 10.0;
   }
+  }
+  std::ifstream is24 ("calc_density.tmp");
+  int calc_density;
+  is24 >> calc_density;
+  is24.close();
+  
+  std::ifstream is25 ("density_file.tmp");
+  std::string density_file;
+  is25 >> density_file;
+  is25.close();
+  //get the density?
+  if (calc_density > 0) {
+    electron.ElectronicDensity(density_file);
   }
   // end of gfn2
   

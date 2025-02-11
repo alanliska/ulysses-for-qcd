@@ -35,6 +35,27 @@
 //description:
 //molecular dynamics package
 
+std::vector<int> getNumbersFromFile(std::string filename) {
+  //function reading a series of comma separated numbers from a file
+  std::vector<int> numbers;
+  std::ifstream file(filename);
+  if (!file.is_open()) {throw std::string("ERROR: MolecularDynamics.hpp: getNumbersFromFile(): file cannot be open");}
+  std::string line;
+  while (std::getline(file,line)) {
+      std::stringstream ss(line);
+      std::string numberStr;
+      while (std::getline(ss, numberStr,',')) {
+          try {
+            int number = std::stoi(numberStr);
+            numbers.push_back(number);
+          } 
+          catch (std::invalid_argument & e) {std::cout << "WARNING: MolecularDynamics.hpp: getNumbersFromFile(): skipping invalid number" << std::endl;}
+      }
+  }
+  file.close();
+  return numbers;
+}
+
 class MetaDynamics {
   //class for metadynamics objects, based on
   //S. Grimme, J. Chem. Theory Comput., 15, 5, 2847, 2019
