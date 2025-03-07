@@ -8,10 +8,10 @@
 
 ```bash
 $ cd compilation
-$ /path/to/Android-NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi34-clang++ -std=c++11 -O3 ulysses.cpp -o ulysses_arm -fPIC -static-libstdc++
-$ /path/to/Android-NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang++ -std=c++11 -O3 ulysses.cpp -o ulysses_aarch64 -fPIC -static-libstdc++
-$ /path/to/Android-NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android34-clang++ -std=c++11 -O3 ulysses.cpp -o ulysses_x86 -fPIC -static-libstdc++
-$ /path/to/Android-NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android34-clang++ -std=c++11 -O3 ulysses.cpp -o ulysses_x86_64 -fPIC -static-libstdc++
+$ /path/to/Android-NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi34-clang++ -std=c++11 -O3 ulysses_arm.cpp -o ulysses_arm -fPIC -static-libstdc++
+$ /path/to/Android-NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android34-clang++ -std=c++11 -O3 ulysses_aarch64.cpp -o ulysses_aarch64 -fPIC -static-libstdc++
+$ /path/to/Android-NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android34-clang++ -std=c++11 -O3 ulysses_x86.cpp -o ulysses_x86 -fPIC -static-libstdc++
+$ /path/to/Android-NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android34-clang++ -std=c++11 -O3 ulysses_x86_64.cpp -o ulysses_x86_64 -fPIC -static-libstdc++
 ```
 
 ## Acknowledgement

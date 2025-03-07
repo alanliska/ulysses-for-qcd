@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
   std::cout << " " << "\n";
   std::cout << "Authors: Filipe Menezes and Grzegorz M. Popowicz" << "\n";
   std::cout << "" << "\n";
-  std::cout << "Version for Android (arm, pie) powered by EIGEN, RAPIDJSON and XSUM libraries compiled by A. Liska & V. Ruzickova on February 11, 2025." << "\n";
+  std::cout << "Version for Android (x86_64, pie) powered by EIGEN, RAPIDJSON and XSUM libraries compiled by A. Liska & V. Ruzickova on March 7, 2025." << "\n";
   std::cout << "" << "\n";
   std::cout << "" << "\n";
   std::cout << "References:" << "\n";
@@ -120,24 +120,11 @@ int main(int argc, char** argv) {
   is34 >> do_equ;
   is34.close();
   
-  bool doequ;
-  if (do_equ  == 1){
-  	doequ = true;
-  } else {
-  	doequ = false;
-  }
-  
   std::ifstream is35 ("md_opt_geometry.tmp");
   int opt_geometry;
   is35 >> opt_geometry;
   is35.close();
-  
-  bool optgeometry;
-  if (opt_geometry  == 1){
-  	optgeometry = true;
-  } else {
-  	optgeometry = false;
-  }
+  bool optgeometry = (opt_geometry > 0);
   
   //Molecule mol(argv[1],charge,1);
   Molecule mol(argv[1],charge,mult,point_group);
@@ -163,8 +150,18 @@ int main(int argc, char** argv) {
   int printfreq;
   is48 >> printfreq;
   is48.close();
+  // the folder must exist before, ULYSSES program does not create it
+  std::ifstream is39 ("md_geometry_location.tmp");
+  std::string geom_loc;
+  is39 >> geom_loc;
+  is39.close();
   
-  Dynamics MDobj(mol,tmax,doequ,optgeometry,tstep,printfreq);
+  ///
+  std::cout << "Debug: 1" << std::endl;
+  ///
+  
+  Dynamics MDobj(mol,tmax,do_equ,optgeometry,tstep,topt);
+  MDobj.setGeometryFile(geom_loc);
   MDobj.ApplyConstraints(false,SHAKE);
   MDobj.setIntegration("LeapFrog");
   
@@ -178,14 +175,17 @@ int main(int argc, char** argv) {
   is38 >> equi_loc;
   is38.close();
   
-  std::ifstream is39 ("md_geometry_location.tmp");
-  std::string geom_loc;
-  is39 >> geom_loc;
-  is39.close();
+  ///
+  std::cout << "Debug: 2" << std::endl;
+  ///
+  
   //where to save files
   MDobj.setTrajectoryFile(traj_loc);
   MDobj.setEquilibrationFile(equi_loc);
-  MDobj.setGeometryFile(geom_loc);
+  
+  ///
+  std::cout << "Debug: 3" << std::endl;
+  ///
   
   //metadynamics?
   std::ifstream is41 ("md_mtd.tmp");
@@ -208,11 +208,12 @@ int main(int argc, char** argv) {
   int mtdcollect;
   is45 >> mtdcollect;
   is45.close();
-  std::ifstream is46 ("md_bias_mol.tmp");
-  std::string bias_mol;
-  is46 >> bias_mol;
-  is46.close();
-  
+  // error - must have the .xyz extension
+  // input the file name, not its content!
+  // std::ifstream is46 ("md_bias_mol.tmp");
+  // std::string bias_mol;
+  // is46 >> bias_mol;
+  // is46.close();
   std::ifstream is47 ("md_drift_thresh.tmp");
   double driftthresh;
   is47 >> driftthresh;
@@ -224,7 +225,7 @@ int main(int argc, char** argv) {
     for (size_t idatm = 0; idatm < mtdrestr.size(); ++idatm) {
       MDobj.addMetaAtom(mtdrestr[idatm]);
     }
-    Molecule newmol(bias_mol,charge,mult,point_group);
+    Molecule newmol("md_bias_mol.xyz",charge,mult,point_group);
     if ((newmol.Natoms() > 0)&&(kappa < 0.0)) {
       std::vector<matrixE> metaset;
       metaset.resize(numbstruct);
@@ -235,15 +236,8 @@ int main(int argc, char** argv) {
       MDobj.setMetaSet(metaset);
     }
   }
-  
-  
-  
+  // at this point, the MD folder must exist, otherwise an error occurs
   MDobj.runMD(electron,Temperature,driftthresh,printfreq);
-  
-  
-  
-  
-  
   
   } else if (runtype == "nddo") {
   
@@ -4092,9 +4086,21 @@ int main(int argc, char** argv) {
     std::cout << "<Orbital Reactivity indices" << std::endl;
   }
 
-  if (koopman_ip > 0) {std::cout << "Ionization Potential (Koopman): " << electron.IonizationPotential(true)*au2eV << "   eV" << std::endl;}
-  if (ip > 0) {std::cout << "Ionization Potential (Definition): " << electron.IonizationPotential(false)*au2eV << "   eV" << std::endl;}
-  if (ea > 0) {std::cout << "Electron Affinity (Definition): " << electron.ElectronAffinity()*au2eV << "   eV" << std::endl;}
+  if (koopman_ip > 0) {
+  std::cout << "" << std::endl;
+  std::cout << "Ionization Potential (Koopman): " << electron.IonizationPotential(true)*au2eV << "   eV" << std::endl;
+  std::cout << "" << std::endl;
+  }
+  if (ip > 0) {
+  std::cout << "empirical IP shift " << "4.8455" << "   eV" << std::endl;
+  std::cout << "Ionization Potential (Definition): " << electron.IonizationPotential(false)*au2eV-4.8455 << "   eV" << std::endl;
+  std::cout << "" << std::endl;
+  }
+  if (ea > 0) {
+  std::cout << "empirical EA shift " << "4.8455" << "   eV" << std::endl;
+  std::cout << "Electron Affinity (Definition): " << electron.ElectronAffinity()*au2eV-4.8455 << "   eV" << std::endl;
+  std::cout << "" << std::endl;
+  }
   
   if ((electronegativity > 0)||(hardness > 0)) {
     double chi;
